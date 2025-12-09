@@ -36,42 +36,32 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
 
     % figure setup
     figure;
-    tiledlayout(1,4,"TileSpacing","compact","Padding","compact");
+    tiledlayout(1,3,"TileSpacing","compact","Padding","compact");
 
-    % plot 1: phi
+    % plot 1+2: phi and theta
+    % Compute 2D histogram (density)
+    nbins = 50;
+    edges = linspace(0, 2*pi, nbins+1);
+    
+    [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi, acceptedTheta, edges, edges);
+    
+    % prior codes used, with copilot auto-do
+    dphi = phiEdges(2) - phiEdges(1);
+    dtheta = thetaEdges(2) - thetaEdges(1);
+    pdf2D = counts / (sum(counts, "all") * dphi * dtheta);
+    
     nexttile;
-    h=histogram(acceptedPhi, 50,"Normalization", "pdf", "DisplayName", "Generated Sample","BinLimits",[0,2*pi]);
-    xlim([0,2*pi]);
-    ylim([0,1.5/(2*pi)]);
-    axis square 
-    xlabel("\phi")
-    ylabel("Frequency")
-    hold on;
-    xgrid = linspace(0,2*pi,1000);
-    y = ones(size(xgrid)) * (1 / (2*pi));
-    plot(xgrid, y, 'LineWidth', 2, 'DisplayName', 'Constant $\frac{1}{2\pi}$');
-    legend show
-    legend("Location","southwest");
-    legend("Interpreter","latex");
-    title(sprintf(["$\\phi$\nBurned in $\\phi_0 = %.4f$\n$n = %d,\\; \\sigma = %.2f$"],acceptedPhi(1), nSamples, sigma),"Interpreter", "latex");
-
-
-    % plot 2: theta
-    nexttile;
-    h=histogram(acceptedTheta, 50,"Normalization", "pdf", "DisplayName", "Generated Sample","BinLimits",[0,2*pi]);
-    xlim([0,2*pi]);
-    ylim([0,1.5/(2*pi)]);
-    axis square 
-    xlabel("\theta")
-    ylabel("Frequency")
-    hold on;
-    xgrid = linspace(0,2*pi,1000);
-    y = ones(size(xgrid)) * (1 / (2*pi));
-    plot(xgrid, y, 'LineWidth', 2, 'DisplayName', 'Constant $\frac{1}{2\pi}$');
-    legend show
-    legend("Location","southwest");
-    legend("Interpreter","latex");
-    title(sprintf(["$\\theta$\nBurned in $\\theta_0 = %.4f$\n$n = %d,\\; \\sigma = %.2f$"],acceptedTheta(1), nSamples, sigma),"Interpreter", "latex");
+    imagesc(phiEdges, thetaEdges, pdf2D');    
+    axis square
+    xlabel('\phi');
+    ylabel('\theta');
+    
+    colorbar
+    caxis([0 0.1]); % gpt after asking, used in other parts!
+    colormap(turbo);
+    title(sprintf("$\\phi$ vs $\\theta$ Density Heatmap\n$n = %d,\\; \\sigma = %.2f$", ...
+                  nSamples, sigma), 'Interpreter', 'latex');
+    
     
     % gets torus density data
     [Zpos,Zneg,Npos,Nneg,R,r,bins] = torusDensity(acceptedTheta,acceptedPhi,nSamples);
@@ -91,7 +81,8 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
     surf(xgrid, ygrid, Zneg','EdgeColor','none'); % bottom
 
     axis equal tight;
-    colormap(h3, turbo); colorbar; % chatgpt - bcause colormap turbo for example is global
+    colormap(h3, turbo); colorbar; % gpt - bcause colormap turbo for example is global
+    caxis([-1 1]);
     xlabel("X"); ylabel("Y"); zlabel("Z");
     title(sprintf(["Torus\n3D Mapping of Densities"]),"Interpreter", "latex");
     view(45,35);
@@ -107,6 +98,7 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
     xlabel("X"); ylabel("Y");
     title(sprintf(["Torus\nDensity Map for X,Y"]),"Interpreter", "latex");
     colormap(h4, hot); colorbar;
+    caxis([0 nSamples*0.0005]);
     
     % chatgpt suggestion to make tiles transparent if NaN - also made hImg
     % up for me
@@ -177,35 +169,38 @@ end
 
 % animation func
 function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
-    nFrames = 250;
-    fig = figure;
-    tiledlayout(fig, 1, 4, "TileSpacing","compact","Padding","compact");
+    nFrames = 450;
+    fig = figure('Position', [0 0 1920 1080]); % new tab
+    tiledlayout(fig, 1, 3, "TileSpacing","compact","Padding","compact");
 
     % starts video
     v = VideoWriter('torus_animation.mp4','MPEG-4');
-    v.FrameRate = 30;
+    v.FrameRate = 25;
     open(v);
 
-    % phi
+    % theta phi map
     nexttile;
-    h1 = histogram(acceptedPhi(1:1), 50, ...
-        "Normalization","pdf", "BinLimits",[0,2*pi]);
-    hold on;
-    xgrid = linspace(0,2*pi,1000);
-    plot(xgrid, ones(size(xgrid))/(2*pi),'LineWidth',2);
-    xlim([0,2*pi]); ylim([0,1.5/(2*pi)]);
-    axis square
-    xlabel("\phi"); ylabel("Frequency");
+    nbins = 50;
+    edges = linspace(0,2*pi,nbins+1);
+    [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi(1:1),acceptedTheta(1:1),edges,edges);
 
-    % theta
-    nexttile;
-    h2 = histogram(acceptedTheta(1:1), 50, ...
-        "Normalization","pdf", "BinLimits",[0,2*pi]);
-    hold on;
-    plot(xgrid, ones(size(xgrid))/(2*pi),'LineWidth',2);
-    xlim([0,2*pi]); ylim([0,1.5/(2*pi)]);
+    dphi = phiEdges(2)-phiEdges(1);
+    dtheta = thetaEdges(2)-thetaEdges(1);
+    pdf2D = counts / (sum(counts,"all") * dphi * dtheta);
+
+    hHeat = imagesc(phiEdges,thetaEdges,pdf2D');
     axis square
-    xlabel("\theta"); ylabel("Frequency");
+    xlabel("\phi"); ylabel("\theta");
+    colorbar
+
+    caxis([0 0.1]);
+    xlim([0 2*pi]);
+    ylim([0 2*pi]);
+
+    colormap(turbo);
+
+    % theta (removed – now absorbed into heatmap)
+    % (no second histogram tile)
 
     % key torus values
     [~,~,Npos,~,R,r,bins] = torusDensity(acceptedPhi(1:1), acceptedTheta(1:1), 1 );
@@ -224,6 +219,12 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     ZnegPlot = surf(xgrid3D, ygrid3D, nan(size(xgrid3D)),'EdgeColor','none'); % bottom
     axis equal tight off;
     colormap(h3, turbo); colorbar;
+    
+    caxis([-1 1]);
+    xlim([xe(1) xe(end)])
+    ylim([ye(1) ye(end)])
+    zlim([-1 1])
+
     view(45,35); camlight headlight; lighting gouraud;
 
     % birds eye
@@ -235,42 +236,47 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
         nan(size(Npos)));
     hImg.AlphaData = ~isnan(Npos);
     axis equal tight off;
+
+    caxis([0 nSamples*0.0005]);
+    xlim([-(R+r+0.05) (R+r+0.05)])
+    ylim([-(R+r+0.05) (R+r+0.05)])
+
     colormap(h4, hot); colorbar;
 
     % summary msg
     msg = sprintf('sigma = %.3f\nn = %d', sigma, nSamples);
     
     note = annotation(fig, 'textbox', ...
-    [0.01, 0.01, 0.25, 0.1], ...   % position
-    'String', msg, ...
-    'FontSize', 14, ...
-    'HorizontalAlignment', 'left', ...
-    'VerticalAlignment', 'bottom', ...
-    'BackgroundColor', 'cyan', ...   % <- transparent box
-    'EdgeColor', 'none', ...         % <- no border
-    'Color', "black");
+    [0.01, 0.01, 0.25, 0.1], ...
+    "String", msg, ...
+    "FontSize", 14, ...
+    "HorizontalAlignment", "left", ...
+    "VerticalAlignment", "bottom", ...
+    "BackgroundColor", "none", ...
+    "EdgeColor", "none", ...
+    "Color", "white");  
 
 
     % frame update
     frameIdx = unique( round( logspace(0, log10(nSamples), nFrames) ) );
     for i = frameIdx
-        % update histograms
-        h1.Data = acceptedPhi(1:i);
-        h2.Data = acceptedTheta(1:i);
+        [counts, ~, ~] = histcounts2( ...
+            acceptedPhi(1:i), acceptedTheta(1:i), edges, edges);
+        pdf2D = counts / (sum(counts,"all") * dphi * dtheta);
+        set(hHeat,"CData",pdf2D');
 
         % recompute torus density
         [Zpos,Zneg,Npos,Nneg,~,~,~] = torusDensity(acceptedPhi(1:i), acceptedTheta(1:i), i );
         set(ZposPlot, "ZData",Zpos');
         set(ZnegPlot,"ZData",Zneg');
-        % update torus
+
         Ntotal = Npos + Nneg;
         Ntotal(Ntotal==0) = NaN; 
         hImg.CData = Ntotal;
         hImg.AlphaData = ~isnan(Ntotal);
-        % updates summary
+
         note.String = sprintf('sigma = %.3f\nn = %d / %d', sigma, i, nSamples);
 
-        % animates, add frame
         drawnow limitrate   
         frame = getframe(fig);
         writeVideo(v, frame); 
@@ -281,7 +287,6 @@ end
 
 
 % primary seq
-plotter(1e7,1e4,0.25,pi,pi,false)
+plotter(1e7,1e4,0.25,pi,pi,true)
 plotter(1e5,1e4,0.25,pi,pi,false)
 plotter(1e7,1e4,0.005,pi,pi,false)
-plotter(1e6,1e4,0.25,pi,pi,false)
