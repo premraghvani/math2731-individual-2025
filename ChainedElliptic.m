@@ -14,7 +14,7 @@ function [acceptedPhi,acceptedTheta] = convergence(nSamples,burnIn,sigma,firstPh
         proposedPhi = acceptedPhi(i-1) + sigma * randn;
         proposedTheta = acceptedTheta(i-1) + sigma * randn;
         acceptedPhi(i) = mod(proposedPhi,2*pi);
-        acceptedTheta(i) = mod(proposedTheta,2*pi);
+        acceptedTheta(i) = mod(proposedTheta,10*pi); % changed this, as which theta will now dictate which chain part
     end
 
     % rids of burn in
@@ -41,8 +41,9 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
     % plot 1+2: phi and theta
     nbins = 50;
     edges = linspace(0, 2*pi, nbins+1);
+    edgesTheta = linspace(0,10*pi,5*nbins+1);
     
-    [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi, acceptedTheta, edges, edges);
+    [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi, acceptedTheta, edges, edgesTheta);
     
     % prior codes used, with copilot auto-do
     dphi = phiEdges(2) - phiEdges(1);
@@ -112,10 +113,12 @@ end
 % torus density
 function [Zpos,Zneg,Npos,Nneg,R,r,bins] = torusDensity(acceptedTheta,acceptedPhi,nSamples)
     % torus cartesian formation
-    R=2;
+    a=2;
+    b=3;
     r=1;
-    x = (R+r*sin(acceptedTheta)).*cos(acceptedPhi);
-    y = (R+r*sin(acceptedTheta)).*sin(acceptedPhi);
+    R=max(a,b);
+    x = (a+r*sin(acceptedTheta)).*cos(acceptedPhi);
+    y = (b+r*sin(acceptedTheta)).*sin(acceptedPhi);
     z = r*cos(acceptedTheta);
 
     % inspiration https://uk.mathworks.com/help/matlab/creating_plots/types-of-matlab-plots.html
@@ -173,7 +176,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     tiledlayout(fig, 1, 3, "TileSpacing","compact","Padding","compact");
 
     % starts video
-    v = VideoWriter('torus_animation.mp4','MPEG-4');
+    v = VideoWriter('torus_animation_elliptic.mp4','MPEG-4');
     v.FrameRate = 25;
     open(v);
 
@@ -286,6 +289,4 @@ end
 
 
 % primary seq
-plotter(1e7,1e4,0.25,pi,pi,true)
-plotter(1e5,1e4,0.25,pi,pi,false)
-plotter(1e7,1e4,0.005,pi,pi,false)
+plotter(1e7,1e4,0.25,pi,pi,false)

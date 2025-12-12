@@ -112,10 +112,12 @@ end
 % torus density
 function [Zpos,Zneg,Npos,Nneg,R,r,bins] = torusDensity(acceptedTheta,acceptedPhi,nSamples)
     % torus cartesian formation
-    R=2;
+    a=2;
+    b=3;
     r=1;
-    x = (R+r*sin(acceptedTheta)).*cos(acceptedPhi);
-    y = (R+r*sin(acceptedTheta)).*sin(acceptedPhi);
+    R=max(a,b);
+    x = (a+r*sin(acceptedTheta)).*cos(acceptedPhi);
+    y = (b+r*sin(acceptedTheta)).*sin(acceptedPhi);
     z = r*cos(acceptedTheta);
 
     % inspiration https://uk.mathworks.com/help/matlab/creating_plots/types-of-matlab-plots.html
@@ -173,7 +175,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     tiledlayout(fig, 1, 3, "TileSpacing","compact","Padding","compact");
 
     % starts video
-    v = VideoWriter('torus_animation.mp4','MPEG-4');
+    v = VideoWriter('torus_animation_elliptic.mp4','MPEG-4');
     v.FrameRate = 25;
     open(v);
 
@@ -287,5 +289,3 @@ end
 
 % primary seq
 plotter(1e7,1e4,0.25,pi,pi,true)
-plotter(1e5,1e4,0.25,pi,pi,false)
-plotter(1e7,1e4,0.005,pi,pi,false)
