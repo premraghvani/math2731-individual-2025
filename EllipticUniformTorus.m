@@ -1,5 +1,5 @@
 % seeding for output purposes
-rng(1);
+rng(2);
 
 % function
 function [acceptedPhi,acceptedTheta] = convergence(nSamples,burnIn,sigma,firstPhi,firstTheta)
@@ -204,7 +204,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     % (no second histogram tile)
 
     % key torus values
-    [~,~,Npos,~,R,r,bins] = torusDensity(acceptedPhi(1:1), acceptedTheta(1:1), 1 );
+    [~,~,Npos,~,R,r,bins] = torusDensity(acceptedTheta(1:1), acceptedPhi(1:1), 1 );
 
     % torus 3d
     nexttile;
@@ -267,7 +267,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
         set(hHeat,"CData",pdf2D');
 
         % recompute torus density
-        [Zpos,Zneg,Npos,Nneg,~,~,~] = torusDensity(acceptedPhi(1:i), acceptedTheta(1:i), i );
+        [Zpos,Zneg,Npos,Nneg,~,~,~] = torusDensity(acceptedTheta(1:i), acceptedPhi(1:i), i );
         set(ZposPlot, "ZData",Zpos');
         set(ZnegPlot,"ZData",Zneg');
 

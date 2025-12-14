@@ -64,42 +64,51 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
     
     
     % gets torus density data
-    [Zpos,Zneg,Npos,Nneg,R,r,bins] = torusDensity(acceptedTheta,acceptedPhi,nSamples);
+    [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,R,r,bins,binsX,minZ,maxZ] = torusDensity(acceptedTheta,acceptedPhi,nSamples);
 
     % plot 3: to emphasise on heights
     nexttile;
     hold on;
 
     % gridding
-    xe = linspace(-R*1.5, R*1.5, bins);
-    ye = linspace(-R*1.5, R*1.5, bins);
-    xc = xe(1:end-1) + 0.5*(R+r)/bins;
+    xe = linspace(-(R+r)*5, (R+r)*5, binsX);
+    ye = linspace(-(R+r)*1.2, (R+r)*1.2, bins);
+    xc = xe(1:end-1) + 0.5*(R+r)/binsX;
     yc = ye(1:end-1) + 0.5*(R+r)/bins;
     [xgrid, ygrid] = meshgrid(xc, yc);
     h3=gca;
-    surf(xgrid, ygrid, Zpos','EdgeColor','none'); % top
-    surf(xgrid, ygrid, Zneg','EdgeColor','none'); % bottom
+    surf(xgrid, ygrid, ZposNormal','EdgeColor','none'); % top unrotated
+    surf(xgrid, ygrid, ZnegNormal','EdgeColor','none'); % bottom unrotated
+    surf(xgrid, ygrid, ZposRotated','EdgeColor','none'); % top rotated
+    surf(xgrid, ygrid, ZnegRotated','EdgeColor','none'); % bottom rotated
 
     axis equal tight;
     colormap(h3, turbo); colorbar; % gpt - bcause colormap turbo for example is global
-    caxis([-1 1]);
+    caxis([minZ maxZ]);
     xlabel("X"); ylabel("Y"); zlabel("Z");
-    title(sprintf(["Torus\n3D Mapping of Densities"]),"Interpreter", "latex");
+    title(sprintf(["Chained Tori\n3D Mapping of Densities"]),"Interpreter", "latex");
     view(45,35);
     camlight headlight; lighting gouraud;
 
     % plot 4: x,y
-    Ntotal = Npos + Nneg;
+    Ntotal = NposNormal + NnegNormal + NposRotated + NnegRotated;
     Ntotal(Ntotal==0) = NaN; 
     nexttile;
     h4 = gca;
-    hImg = imagesc(-(R+r)+(R+r)/bins:2*(R+r)/bins:(R+r), -(R+r)+(R+r)/bins:2*(R+r)/bins:(R+r), Ntotal);
+
+    minX = -4; maxX = 20; minY = -3; maxY = 3;
+    % uses old analytic results for a=3,b=2,r=1, but it works fine (seemingly)
+
+    xCoords = linspace(minY,maxY,bins-1);
+    yCoords = linspace(minX,maxX,binsX-1); % swapped these around and it works?! - no idea why, but it paints a pretty picture
+
+    hImg = imagesc(xCoords, yCoords, Ntotal); % directly inputted numerically from min, max, interX and Y
     axis equal tight off;
-    xlabel("X"); ylabel("Y");
-    title(sprintf(["Torus\nDensity Map for X,Y"]),"Interpreter", "latex");
+    xlabel("Y"); ylabel("X");
+    title(sprintf(["Torus\nDensity Map for X,Y\nAxes Transposed"]),"Interpreter", "latex");
     colormap(h4, hot); colorbar;
-    caxis([0 nSamples*0.0005]);
-    
+    caxis([0 nSamples*0.0003]);
+
     % chatgpt suggestion to make tiles transparent if NaN - also made hImg
     % up for me
     hImg.AlphaData = ~isnan(Ntotal); 
@@ -111,80 +120,126 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
 end
 
 % torus density
-function [Zpos,Zneg,Npos,Nneg,R,r,bins] = torusDensity(acceptedTheta,acceptedPhi,nSamples)
+function [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,R,r,bins,binsX,minZ,maxZ] = torusDensity(acceptedTheta,acceptedPhi,nSamples)
     % torus cartesian formation
-    a=2;
+    a=4;
     b=3;
     r=1;
     R=max(a,b);
-    x = (a+r*sin(acceptedTheta)).*cos(acceptedPhi);
-    y = (b+r*sin(acceptedTheta)).*sin(acceptedPhi);
-    z = r*cos(acceptedTheta);
+    centerSeparation = 2*(R-r);
+    
+    chainId = floor(acceptedTheta / (2*pi));
+    rotation = mod(chainId,2); % 0 = normal, 1 = side
+
+    x = (a+r*sin(acceptedTheta)).*cos(acceptedPhi) + centerSeparation.*chainId;
+
+    % vectorised variant, as if it is rotated, y and z are flipped
+    y = (b+r*sin(acceptedTheta)).*sin(acceptedPhi).*abs(rotation-1) + r*cos(acceptedTheta).*rotation;
+    z = r*cos(acceptedTheta).*abs(rotation-1) + -1*(b+r*sin(acceptedTheta)).*sin(acceptedPhi).*rotation;
+
 
     % inspiration https://uk.mathworks.com/help/matlab/creating_plots/types-of-matlab-plots.html
 
     % space and bins for x,y axis
     bins = 200;
+    binsX = 800;
     
     % logic: we find, in each bin (area), the average of positive z, and average of negative z to shape the torus.
     % can also be used for plot 4 in densities for top view.
 
+    minX = round(min(x),0);
+    maxX = round(max(x),0);
+    minY = round(min(y),0);
+    maxY = round(max(y),0);
+    minZ = round(min(z),0);
+    maxZ = round(max(z),0);
+
+    binXDivider = (maxX - minX) / binsX;
+    binYDivider = (maxY - minY) / bins;
+
     % number and total Z
-    Zpos = nan(bins-1,bins-1);  Npos = zeros(bins-1,bins-1);
-    Zneg = nan(bins-1,bins-1);  Nneg = zeros(bins-1,bins-1);
+    ZposNormal = nan(binsX-1,bins-1);  NposNormal = zeros(binsX-1,bins-1);
+    ZnegNormal = nan(binsX-1,bins-1);  NnegNormal = zeros(binsX-1,bins-1);
+    ZposRotated = nan(binsX-1,bins-1);  NposRotated = zeros(binsX-1,bins-1);
+    ZnegRotated = nan(binsX-1,bins-1);  NnegRotated = zeros(binsX-1,bins-1);
     
 
     % looping through all items
     for k = 1:nSamples
 
         % bin indices for this sample
-        boxX = floor((x(k) + R + r) * bins / (2*(R+r)));
-        boxY = floor((y(k) + R + r) * bins / (2*(R+r)));
+        boxX = floor((x(k) - minX) / binXDivider) + 1;
+        boxY = floor((y(k) - minY) / binYDivider) + 1;
         % clip indices
-        boxX = min(max(boxX, 1), bins-1);
+        boxX = min(max(boxX, 1), binsX-1);
         boxY = min(max(boxY, 1), bins-1);
 
-        % positive Z
-        if z(k) >= 0
-            if isnan(Zpos(boxX, boxY))
-                Zpos(boxX, boxY) = z(k);
+        % positive Z unrotated
+        if z(k) >= 0 && rotation(k) == 0
+            if isnan(ZposNormal(boxX, boxY))
+                ZposNormal(boxX, boxY) = z(k);
             else
-                Zpos(boxX, boxY) = Zpos(boxX, boxY) + z(k);
+                ZposNormal(boxX, boxY) = ZposNormal(boxX, boxY) + z(k);
             end
-            Npos(boxX, boxY) = Npos(boxX, boxY) + 1;
-        else % negative Z
-            if isnan(Zneg(boxX, boxY))
-                Zneg(boxX, boxY) = z(k);
+            NposNormal(boxX, boxY) = NposNormal(boxX, boxY) + 1;
+
+        % positive Z rotated
+        elseif z(k) >= 0 && rotation(k) == 1 
+            if isnan(ZposRotated(boxX, boxY))
+                ZposRotated(boxX, boxY) = z(k);
             else
-                Zneg(boxX, boxY) = Zneg(boxX, boxY) + z(k);
+                ZposRotated(boxX, boxY) = ZposRotated(boxX, boxY) + z(k);
             end
-            Nneg(boxX, boxY) = Nneg(boxX, boxY) + 1;
+            NposRotated(boxX, boxY) = NposRotated(boxX, boxY) + 1;
+        
+        % negative Z unrotated
+        elseif z(k) < 0 && rotation(k) == 0
+            if isnan(ZnegNormal(boxX, boxY))
+                ZnegNormal(boxX, boxY) = z(k);
+            else
+                ZnegNormal(boxX, boxY) = ZnegNormal(boxX, boxY) + z(k);
+            end
+            NnegNormal(boxX, boxY) = NnegNormal(boxX, boxY) + 1;
+
+        % negative Z rotated
+        else
+            if isnan(ZnegRotated(boxX, boxY))
+                ZnegRotated(boxX, boxY) = z(k);
+            else
+                ZnegRotated(boxX, boxY) = ZnegRotated(boxX, boxY) + z(k);
+            end
+            NnegRotated(boxX, boxY) = NnegRotated(boxX, boxY) + 1;
         end
     end
 
     % finds average density per box
-    Zpos = Zpos ./ Npos;
-    Zneg = Zneg ./ Nneg;
-    Zpos(Npos==0) = nan;
-    Zneg(Nneg==0) = nan;
+    ZposNormal = ZposNormal ./ NposNormal;
+    ZnegNormal = ZnegNormal ./ NnegNormal;
+    ZposRotated = ZposRotated ./ NposRotated;
+    ZnegRotated = ZnegRotated ./ NnegRotated;
+    ZposNormal(NposNormal==0) = nan;
+    ZnegNormal(NnegNormal==0) = nan;
+    ZposRotated(NposRotated==0) = nan;
+    ZnegRotated(NnegRotated==0) = nan;
 end
 
 % animation func
 function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     nFrames = 450;
-    fig = figure('Position', [0 0 1920 1080]); % new tab
+    fig = figure('Position', [0 50 1920 1080]); % new tab
     tiledlayout(fig, 1, 3, "TileSpacing","compact","Padding","compact");
 
     % starts video
-    v = VideoWriter('torus_animation_elliptic.mp4','MPEG-4');
+    v = VideoWriter('torus_animation_elliptic_chained.mp4','MPEG-4');
     v.FrameRate = 25;
     open(v);
 
     % theta phi map
     nexttile;
     nbins = 50;
-    edges = linspace(0,2*pi,nbins+1);
-    [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi(1:1),acceptedTheta(1:1),edges,edges);
+    edges = linspace(0, 2*pi, nbins+1);
+    edgesTheta = linspace(0,10*pi,5*nbins+1);
+    [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi(1:1),acceptedTheta(1:1),edges,edgesTheta);
 
     dphi = phiEdges(2)-phiEdges(1);
     dtheta = thetaEdges(2)-thetaEdges(1);
@@ -197,7 +252,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
 
     caxis([0 0.1]);
     xlim([0 2*pi]);
-    ylim([0 2*pi]);
+    ylim([0 10*pi]);
 
     colormap(turbo);
 
@@ -205,43 +260,48 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     % (no second histogram tile)
 
     % key torus values
-    [~,~,Npos,~,R,r,bins] = torusDensity(acceptedPhi(1:1), acceptedTheta(1:1), 1 );
+    [ZposNormal,~,~,~,NposNormal,~,~,~,R,r,bins,binsX,~,~]= torusDensity(acceptedTheta(1:1), acceptedPhi(1:1), 1 );
 
     % torus 3d
     nexttile;
-    xe = linspace(-R*1.5, R*1.5, bins);
-    ye = linspace(-R*1.5, R*1.5, bins);
-    xc = xe(1:end-1) + 0.5*(R+r)/bins;
+    xe = linspace(-(R+r)*5, (R+r)*5, binsX);
+    ye = linspace(-(R+r)*1.2, (R+r)*1.2, bins);
+    xc = xe(1:end-1) + 0.5*(R+r)/binsX;
     yc = ye(1:end-1) + 0.5*(R+r)/bins;
     [xgrid3D, ygrid3D] = meshgrid(xc, yc);
 
     h3 = gca;
     hold on;
-    ZposPlot = surf(xgrid3D, ygrid3D, nan(size(xgrid3D)),'EdgeColor','none'); % top
-    ZnegPlot = surf(xgrid3D, ygrid3D, nan(size(xgrid3D)),'EdgeColor','none'); % bottom
+    ZposPlot = surf(xgrid3D, ygrid3D, nan(size(ZposNormal')),'EdgeColor','none'); % top
+    ZnegPlot = surf(xgrid3D, ygrid3D, nan(size(ZposNormal')),'EdgeColor','none'); % bottom
+    ZposRotatedPlot = surf(xgrid3D, ygrid3D, nan(size(ZposNormal')),'EdgeColor','none'); % top rotate
+    ZnegRotatedPlot = surf(xgrid3D, ygrid3D, nan(size(ZposNormal')),'EdgeColor','none'); % bottom rotate
+
     axis equal tight off;
     colormap(h3, turbo); colorbar;
     
-    caxis([-1 1]);
+    caxis([-4 4]); % numeric known
     xlim([xe(1) xe(end)])
     ylim([ye(1) ye(end)])
-    zlim([-1 1])
+    zlim([-4 4])
 
     view(45,35); camlight headlight; lighting gouraud;
 
     % birds eye
     nexttile;
     h4 = gca;
-    hImg = imagesc( ...
-        -(R+r)+(R+r)/bins:2*(R+r)/bins:(R+r), ...
-        -(R+r)+(R+r)/bins:2*(R+r)/bins:(R+r), ...
-        nan(size(Npos)));
-    hImg.AlphaData = ~isnan(Npos);
+
+    minX = -4; maxX = 20; minY = -3; maxY = 3;
+    xCoords = linspace(minY,maxY,bins-1);
+    yCoords = linspace(minX,maxX,binsX-1); % swapped these around and it works?! - no idea why, but it paints a pretty picture
+
+    hImg = imagesc(xCoords, yCoords, NposNormal);
+    hImg.AlphaData = ~isnan(NposNormal);
     axis equal tight off;
 
-    caxis([0 nSamples*0.0005]);
-    xlim([-(R+r+0.05) (R+r+0.05)])
-    ylim([-(R+r+0.05) (R+r+0.05)])
+    caxis([0 nSamples*0.0003]);
+    %xlim([-(R+r+0.05) (R+r+0.05)])
+    %ylim([-(R+r+0.05) (R+r+0.05)])
 
     colormap(h4, hot); colorbar;
 
@@ -268,11 +328,13 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
         set(hHeat,"CData",pdf2D');
 
         % recompute torus density
-        [Zpos,Zneg,Npos,Nneg,~,~,~] = torusDensity(acceptedPhi(1:i), acceptedTheta(1:i), i );
-        set(ZposPlot, "ZData",Zpos');
-        set(ZnegPlot,"ZData",Zneg');
+        [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,~,~,~,~,~,~] = torusDensity(acceptedTheta(1:i), acceptedPhi(1:i), i );
+        set(ZposPlot, "ZData",ZposNormal');
+        set(ZnegPlot,"ZData",ZnegNormal');
+        set(ZposRotatedPlot, "ZData",ZposRotated');
+        set(ZnegRotatedPlot,"ZData",ZnegRotated');
 
-        Ntotal = Npos + Nneg;
+        Ntotal = NposNormal + NnegNormal + NposRotated + NnegRotated;
         Ntotal(Ntotal==0) = NaN; 
         hImg.CData = Ntotal;
         hImg.AlphaData = ~isnan(Ntotal);
@@ -289,4 +351,5 @@ end
 
 
 % primary seq
-plotter(1e7,1e4,0.25,pi,pi,false)
+plotter(1e8,1e4,0.25,pi,pi,true)
+plotter(1e5,1e4,0.25,pi,pi,false)
