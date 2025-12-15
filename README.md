@@ -15,8 +15,6 @@ There code here is used to produce figures for the report, alongside animations 
 | 2 (bottom) | [BasicUniformTorus](BasicUniformTorus.m) | Round torus, weak convergence due to low sigma |
 | 3 | [EllipticUniformTorus](EllipticUniformTorus.m) | Torus with circular cross-section but elliptic birds-eye view |
 | 4 | [ChainedElliptic](ChainedElliptic.m) | 5 Chained Tori, each with circular cross-section but elliptic birds-eye view, good convergence |
-| 5 | [ChainedElliptic](ChainedElliptic.m) | 5 Chained Tori, each with circular cross-section but elliptic birds-eye view, bad convergence |
-| 6 | [ChainedElliptic_NoMHForConsiderations](ChainedElliptic_NoMHForConsiderations.m) | 5 Chained Tori, each with circular cross-section but elliptic birds-eye view, bad convergence, chain considerations sampled separately randomly |
 
 ## Animations Produced
 
