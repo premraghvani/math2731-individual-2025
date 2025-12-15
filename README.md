@@ -30,4 +30,4 @@ There code here is used to produce figures for the report, alongside animations 
 
 > **Warning.** All code uses the *Mapping Toolbox* - this needs to be installed before running.
 
-> **Remark.** *Repository made public on Day DD Month YYYY, at around XXpm (UTC+1)*
+> **Remark.** *Repository made public on Mon 15 December 2025, at around 1:30pm (UTC+1)*
