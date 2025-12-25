@@ -1,21 +1,48 @@
 % seeding for output purposes
 rng(1);
 
+% constants
+a=4;
+b=3;
+r=1;
+chains = 5;
+
 % function
-function [acceptedPhi,acceptedTheta] = convergence(nSamples,burnIn,sigma,firstPhi,firstTheta)
+function [acceptedPhi,acceptedTheta] = convergence(nSamples,burnIn,sigma,firstPhi,firstTheta,a,b,r,chains)
     % init
     acceptedPhi = zeros(nSamples+burnIn,1);
     acceptedTheta = zeros(nSamples+burnIn,1);
     acceptedPhi(1) = firstPhi;
     acceptedTheta(1) = firstTheta;
 
+    % acceptance jacobian
+    acceptanceJacobian = @(theta, phi) r .* sqrt( ...
+        (sin(theta).^2 .* ( (b + r.*sin(theta)).^2 .* cos(phi).^2 + (a + r.*sin(theta)).^2 .* sin(phi).^2 )) + ...
+        (cos(theta).^2 .* ( (b + r.*sin(theta)).*cos(phi).^2 + (a + r.*sin(theta)).*sin(phi).^2 ).^2) ...
+    );
+
     % primary loop
+    acceptedElements = 1;
     for i = 2:(nSamples+burnIn)
         proposedPhi = acceptedPhi(i-1) + sigma * randn;
         proposedTheta = acceptedTheta(i-1) + sigma * randn;
-        acceptedPhi(i) = mod(proposedPhi,2*pi);
-        acceptedTheta(i) = mod(proposedTheta,10*pi); % changed this, as which theta will now dictate which chain part
+    
+        % acceptance ratio, choses to accept or reject
+        acceptanceRatio = acceptanceJacobian(proposedTheta, proposedPhi) / acceptanceJacobian(acceptedTheta(i-1), acceptedPhi(i-1));
+        if rand < acceptanceRatio
+            acceptedPhi(i) = proposedPhi;
+            acceptedTheta(i) = proposedTheta;
+            acceptedElements = acceptedElements+1;
+        else
+            acceptedPhi(i) = acceptedPhi(i-1);
+            acceptedTheta(i) = acceptedTheta(i-1);
+        end
+
+        % modulo, eliminate the periodicity
+        acceptedPhi(i) = mod(acceptedPhi(i),2*pi);
+        acceptedTheta(i) = mod(acceptedTheta(i),2*pi*chains);
     end
+    disp(acceptedElements/(nSamples+burnIn))
 
     % rids of burn in
     acceptedPhi = acceptedPhi(burnIn+1:end);
@@ -23,8 +50,8 @@ function [acceptedPhi,acceptedTheta] = convergence(nSamples,burnIn,sigma,firstPh
 end
 
 % plot function
-function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
-    [acceptedPhi,acceptedTheta] = convergence(nSamples,burnIn,sigma,firstPhi,firstTheta);
+function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,a,b,r,chains,animate)
+    [acceptedPhi,acceptedTheta] = convergence(nSamples,burnIn,sigma,firstPhi,firstTheta,a,b,r,chains);
 
     % label scales, from main
     set(0,"DefaultAxesFontSize",16);
@@ -41,7 +68,7 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
     % plot 1+2: phi and theta
     nbins = 50;
     edges = linspace(0, 2*pi, nbins+1);
-    edgesTheta = linspace(0,10*pi,5*nbins+1);
+    edgesTheta = linspace(0,2*chains*pi,5*nbins+1);
     
     [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi, acceptedTheta, edges, edgesTheta);
     
@@ -64,17 +91,18 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
     
     
     % gets torus density data
-    [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,R,r,bins,binsX,minZ,maxZ] = torusDensity(acceptedTheta,acceptedPhi,nSamples);
+    [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,bins,binsX,minZ,maxZ] = torusDensity(acceptedTheta,acceptedPhi,nSamples,a,b,r,chains);
 
     % plot 3: to emphasise on heights
     nexttile;
     hold on;
 
     % gridding
-    xe = linspace(-(R+r)*5, (R+r)*5, binsX);
-    ye = linspace(-(R+r)*1.2, (R+r)*1.2, bins);
-    xc = xe(1:end-1) + 0.5*(R+r)/binsX;
-    yc = ye(1:end-1) + 0.5*(R+r)/bins;
+    dimMax = max(a,b);
+    xe = linspace(-(dimMax+r)*chains, (dimMax+r)*chains, binsX);
+    ye = linspace(-(dimMax+r)*1.2, (dimMax+r)*1.2, bins);
+    xc = xe(1:end-1) + 0.5*(dimMax+r)/binsX;
+    yc = ye(1:end-1) + 0.5*(dimMax+r)/bins;
     [xgrid, ygrid] = meshgrid(xc, yc);
     h3=gca;
     surf(xgrid, ygrid, ZposNormal','EdgeColor','none'); % top unrotated
@@ -96,7 +124,7 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
     nexttile;
     h4 = gca;
 
-    minX = -4; maxX = 20; minY = -3; maxY = 3;
+    minX = -(a+r); maxX = (a+r)*(chains*2-1); minY = -(b+r); maxY = (b+r);
     % uses old analytic results for a=3,b=2,r=1, but it works fine (seemingly)
 
     xCoords = linspace(minY,maxY,bins-1);
@@ -115,16 +143,13 @@ function plotter(nSamples,burnIn,sigma,firstPhi,firstTheta,animate)
 
     % animate procedure
     if animate == true
-        animation(acceptedPhi,acceptedTheta,nSamples,sigma)
+        animation(acceptedPhi,acceptedTheta,nSamples,sigma,a,b,r,chains)
     end
 end
 
 % torus density
-function [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,R,r,bins,binsX,minZ,maxZ] = torusDensity(acceptedTheta,acceptedPhi,nSamples)
+function [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,bins,binsX,minZ,maxZ] = torusDensity(acceptedTheta,acceptedPhi,nSamples,a,b,r,chains)
     % torus cartesian formation
-    a=4;
-    b=3;
-    r=1;
     R=max(a,b);
     centerSeparation = 2*(R-r);
     
@@ -142,7 +167,7 @@ function [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,Np
 
     % space and bins for x,y axis
     bins = 200;
-    binsX = 800;
+    binsX = 200*chains;
     
     % logic: we find, in each bin (area), the average of positive z, and average of negative z to shape the torus.
     % can also be used for plot 4 in densities for top view.
@@ -224,7 +249,7 @@ function [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,Np
 end
 
 % animation func
-function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
+function animation(acceptedPhi,acceptedTheta,nSamples,sigma,a,b,r,chains)
     nFrames = 450;
     fig = figure('Position', [0 50 1920 1080]); % new tab
     tiledlayout(fig, 1, 3, "TileSpacing","compact","Padding","compact");
@@ -238,7 +263,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     nexttile;
     nbins = 50;
     edges = linspace(0, 2*pi, nbins+1);
-    edgesTheta = linspace(0,10*pi,5*nbins+1);
+    edgesTheta = linspace(0,2*chains*pi,5*nbins+1);
     [counts, phiEdges, thetaEdges] = histcounts2(acceptedPhi(1:1),acceptedTheta(1:1),edges,edgesTheta);
 
     dphi = phiEdges(2)-phiEdges(1);
@@ -252,7 +277,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
 
     caxis([0 0.1]);
     xlim([0 2*pi]);
-    ylim([0 10*pi]);
+    ylim([0 2*chains*pi]);
 
     colormap(turbo);
 
@@ -260,14 +285,15 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     % (no second histogram tile)
 
     % key torus values
-    [ZposNormal,~,~,~,NposNormal,~,~,~,R,r,bins,binsX,~,~]= torusDensity(acceptedTheta(1:1), acceptedPhi(1:1), 1 );
+    [ZposNormal,~,~,~,NposNormal,~,~,~,bins,binsX,~,~]= torusDensity(acceptedTheta(1:1), acceptedPhi(1:1), 1,a,b,r,chains );
 
     % torus 3d
     nexttile;
-    xe = linspace(-(R+r)*5, (R+r)*5, binsX);
-    ye = linspace(-(R+r)*1.2, (R+r)*1.2, bins);
-    xc = xe(1:end-1) + 0.5*(R+r)/binsX;
-    yc = ye(1:end-1) + 0.5*(R+r)/bins;
+    dimMax = max(a,b);
+    xe = linspace(-(dimMax+r)*chains, (dimMax+r)*chains, binsX);
+    ye = linspace(-(dimMax+r)*1.2, (dimMax+r)*1.2, bins);
+    xc = xe(1:end-1) + 0.5*(dimMax+r)/binsX;
+    yc = ye(1:end-1) + 0.5*(dimMax+r)/bins;
     [xgrid3D, ygrid3D] = meshgrid(xc, yc);
 
     h3 = gca;
@@ -280,10 +306,10 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     axis equal tight off;
     colormap(h3, turbo); colorbar;
     
-    caxis([-4 4]); % numeric known
+    caxis([-(b+r) (b+r)]); % numeric known
     xlim([xe(1) xe(end)])
     ylim([ye(1) ye(end)])
-    zlim([-4 4])
+    zlim([-(b+r) (b+r)])
 
     view(45,35); camlight headlight; lighting gouraud;
 
@@ -291,7 +317,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
     nexttile;
     h4 = gca;
 
-    minX = -4; maxX = 20; minY = -3; maxY = 3;
+    minX = -(a+r); maxX = (a+r)*(chains*2-1); minY = -(b+r); maxY = (b+r);
     xCoords = linspace(minY,maxY,bins-1);
     yCoords = linspace(minX,maxX,binsX-1); % swapped these around and it works?! - no idea why, but it paints a pretty picture
 
@@ -328,7 +354,7 @@ function animation(acceptedPhi,acceptedTheta,nSamples,sigma)
         set(hHeat,"CData",pdf2D');
 
         % recompute torus density
-        [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,~,~,~,~,~,~] = torusDensity(acceptedTheta(1:i), acceptedPhi(1:i), i );
+        [ZposNormal,ZnegNormal,ZposRotated,ZnegRotated,NposNormal,NnegNormal,NposRotated,NnegRotated,~,~,~,~] = torusDensity(acceptedTheta(1:i), acceptedPhi(1:i), i,a,b,r,chains );
         set(ZposPlot, "ZData",ZposNormal');
         set(ZnegPlot,"ZData",ZnegNormal');
         set(ZposRotatedPlot, "ZData",ZposRotated');
@@ -351,5 +377,5 @@ end
 
 
 % primary seq
-plotter(1e8,1e4,0.25,pi,pi,true)
-plotter(1e5,1e4,0.25,pi,pi,false)
+plotter(1e8,1e4,0.25,pi,pi,a,b,r,chains,true)
+%plotter(1e5,1e4,0.25,pi,pi,a,b,r,chains,false)
