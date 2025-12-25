@@ -15,8 +15,6 @@ There code here is used to produce figures for the report, alongside animations 
 | 2 (bottom) | [BasicUniformTorus](BasicUniformTorus.m) | Round torus, weak convergence due to low sigma |
 | 3 | [EllipticUniformTorus](EllipticUniformTorus.m) | Torus with circular cross-section but elliptic birds-eye view |
 | 4 | [ChainedElliptic](ChainedElliptic.m) | 5 Chained Tori, each with circular cross-section but elliptic birds-eye view, good convergence |
-| 5 | [ChainedElliptic](ChainedElliptic.m) | 5 Chained Tori, each with circular cross-section but elliptic birds-eye view, bad convergence |
-| 6 | [ChainedElliptic_NoMHForConsiderations](ChainedElliptic_NoMHForConsiderations.m) | 5 Chained Tori, each with circular cross-section but elliptic birds-eye view, bad convergence, chain considerations sampled separately randomly |
 
 ## Animations Produced
 
@@ -32,4 +30,4 @@ There code here is used to produce figures for the report, alongside animations 
 
 > **Warning.** All code uses the *Mapping Toolbox* - this needs to be installed before running.
 
-> **Remark.** *Repository made public on Day DD Month YYYY, at around XXpm (UTC+1)*
+> **Remark.** *Repository made public on Mon 15 December 2025, at around 1:30pm (UTC+1)*
